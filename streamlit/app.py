@@ -144,6 +144,7 @@ max_pdfs = st.number_input("Max PDFs to download:", min_value=1, max_value=10, v
 start = st.button("Search and Download")
 
 if start and drug.strip():
+    st.session_state.downloaded_files = []
     full_query = f"{drug} repurposing"
     output_folder = os.path.join(st.session_state.downloads_folder, full_query.replace(" ", "_"))
     os.makedirs(output_folder, exist_ok=True)
