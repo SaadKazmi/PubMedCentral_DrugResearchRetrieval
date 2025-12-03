@@ -198,7 +198,8 @@ if st.session_state.downloaded_files:
             # Embed PDF in expander using Streamlit's built-in st.pdf
             try:
                 with open(pdf_path, "rb") as f:
-                    st.pdf(f, height=600, key=pdf_path)
+                    sanitized_key = pdf_path.replace("_", "-").replace("/", "-").replace("\\", "-")
+                    st.pdf(f, height=600, key=sanitized_key)
             except Exception as e:
                 st.error(f"Could not display {pdf_name}: {e}")
 
