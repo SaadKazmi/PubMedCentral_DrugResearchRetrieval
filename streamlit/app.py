@@ -7,6 +7,8 @@ import gzip
 import shutil
 import tarfile
 import time
+from datetime import datetime
+import base64
 
 # ----------------------------
 # PDF VALIDATION
@@ -127,19 +129,27 @@ def download_pdf(pdf_url, save_path, retries=3):
 # ----------------------------
 # STREAMLIT UI
 # ----------------------------
-st.title("PMC Drug Repurposing PDF Downloader")
+st.title("PMC Drug Repurposing PDF Retriever")
+
+# Initialize session state
+if "downloads_folder" not in st.session_state:
+    downloads_folder = os.path.join("pmc_downloads", datetime.now().strftime("%Y%m%d_%H%M%S"))
+    os.makedirs(downloads_folder, exist_ok=True)
+    st.session_state.downloads_folder = downloads_folder
+    st.session_state.downloaded_files = []
 
 drug = st.text_input("Enter drug name:", "insulin")
+max_links = st.number_input("Max links to check:", min_value=1, max_value=100, value=10)
 max_pdfs = st.number_input("Max PDFs to download:", min_value=1, max_value=10, value=3)
 start = st.button("Search and Download")
 
 if start and drug.strip():
     full_query = f"{drug} repurposing"
-    output_folder = full_query.replace(" ", "_")
+    output_folder = os.path.join(st.session_state.downloads_folder, full_query.replace(" ", "_"))
     os.makedirs(output_folder, exist_ok=True)
 
     st.info(f"Searching PMC for '{full_query}'...")
-    pmc_ids, article_links = search_pmc_articles(full_query)
+    pmc_ids, article_links = search_pmc_articles(full_query, max_results=max_links)
     st.write("Found PMC articles:", article_links)
 
     download_count = 0
@@ -154,10 +164,40 @@ if start and drug.strip():
         progress_text.text(f"Downloading PMC{pmcid}...")
         if download_pdf(pdf_url, save_path):
             download_count += 1
+            st.session_state.downloaded_files.append(save_path)
             st.success(f"Downloaded: {save_path}")
         else:
             st.warning(f"Failed to download PMC{pmcid}")
+    
     if download_count == 0:
         st.error("No valid PDFs downloaded.")
     else:
         st.success(f"Downloaded {download_count} PDFs to '{output_folder}'")
+
+# Display downloaded PDFs in collapsible sections with embedded view
+if st.session_state.downloaded_files:
+    st.subheader("Downloaded PDFs")
+    for pdf_path in st.session_state.downloaded_files:
+        pdf_name = os.path.basename(pdf_path)
+        with st.expander(f"📄 {pdf_name}"):
+            st.write(f"**Path:** `{pdf_path}`")
+            
+            # Download button
+            try:
+                with open(pdf_path, "rb") as pdf_file:
+                    st.download_button(
+                        label="Download PDF",
+                        data=pdf_file,
+                        file_name=pdf_name,
+                        mime="application/pdf"
+                    )
+            except:
+                st.error(f"Could not read {pdf_name}")
+            
+            # Embed PDF in expander using Streamlit's built-in st.pdf
+            try:
+                with open(pdf_path, "rb") as f:
+                    st.pdf(f, height=600)
+            except Exception as e:
+                st.error(f"Could not display {pdf_name}: {e}")
+
